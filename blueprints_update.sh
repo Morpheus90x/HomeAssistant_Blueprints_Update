@@ -1,9 +1,9 @@
 #!/bin/bash
 
-_version="1.0.3"
+_version="1.0.4"
 
 self_file="$0"
-self_source_url="https://raw.githubusercontent.com/koter84/HomeAssistant_Blueprints_Update/main/blueprints_update.sh"
+self_source_url="https://raw.githubusercontent.com/Morpheus90x/HomeAssistant_Blueprints_Update/main/blueprints_update.sh"
 
 # defaults
 _do_update="false"
@@ -90,6 +90,15 @@ function _file_download
 	local file="$1"
 	local source_url="$2"
 
+	_blueprint_update_debug "-> check if source is reachable"
+	http_code=$(curl -s -o /dev/null -w "%{http_code}" "$(_fix_url "${source_url}")")
+	if [ "${http_code}" != "200" ]
+	then
+		_blueprint_update_info "! source not reachable (HTTP ${http_code}), skipping..."
+		_blueprint_update_newline
+		return 1
+	fi
+
 	_blueprint_update_debug "-> download blueprint"
 	curl -s -o "${file}" "$(_fix_url "${source_url}")"
 	curl_result=$?
@@ -99,6 +108,8 @@ function _file_download
 		_blueprint_update_newline
 		exit
 	fi
+	# convert to unix format (remove CR)
+	sed -i 's/\r$//' "${file}"
 }
 
 # create a persistant notification
@@ -282,6 +293,9 @@ do
 		fi
 	fi
 
+	# ensure original file is in unix format (remove CR) before processing
+	sed -i 's/\r$//' "${file}"
+
 	# get source url from file
 	blueprint_source_url=$(grep '^ *source_url: ' "${file}" | sed -e s/'^ *source_url: '// -e s/'"'//g -e s/"'"//g)
 	_blueprint_update_debug "-> source_url: ${blueprint_source_url}"
@@ -334,6 +348,7 @@ do
 
 		# download the file
 		_file_download "${_tempfile}" "${blueprint_source_url}"
+		if [ $? -ne 0 ]; then continue; fi
 
 		# find code block with lang-yaml or lang-auto
 		if [ "$(jq -r '.post_stream.posts[0].cooked' "${_tempfile}" | grep '<code class=\"lang-yaml\">')" != "" ]
@@ -345,6 +360,8 @@ do
 
 			_blueprint_update_debug "-> saving the blueprint in the temp file"
 			echo -e "${code}" > "${_tempfile}"
+			# convert to unix format (remove CR)
+			sed -i 's/\r$//' "${_tempfile}"
 
 			#cat "${_tempfile}"
 		elif [ "$(jq -r '.post_stream.posts[0].cooked' "${_tempfile}" | grep '<code class=\"lang-auto\">')" != "" ]
@@ -356,6 +373,8 @@ do
 
 			_blueprint_update_debug "-> saving the blueprint in the temp file"
 			echo -e "${code}" > "${_tempfile}"
+			# convert to unix format (remove CR)
+			sed -i 's/\r$//' "${_tempfile}"
 
 			#cat "${_tempfile}"
 		else
@@ -375,6 +394,7 @@ do
 
 		# download the file
 		_file_download "${_tempfile}" "${blueprint_source_url}"
+		if [ $? -ne 0 ]; then continue; fi
 	fi
 
 	# check for source_url in the new source file
